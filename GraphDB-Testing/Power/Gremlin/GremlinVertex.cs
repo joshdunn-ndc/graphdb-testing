@@ -21,18 +21,18 @@ namespace GraphDB_Testing.Gremlin
 		/// <param name="label">The label of the vertex.</param>
 		public GremlinVertex(string id, string label)
 		{
-			if (string.IsNullOrEmpty(Id))
+			if (string.IsNullOrEmpty(id))
 			{
 				throw new ArgumentException("Vertex must have a valid Id.", nameof(id));
 			}
 
-			if (string.IsNullOrEmpty(Label))
+			if (string.IsNullOrEmpty(label))
 			{
 				throw new ArgumentException("Vertex must have a valid Label.", nameof(label));
 			}
 
-			Id = id;
-			Label = label;
+			this.Id = id;
+			this.Label = label;
 		}
 
 		/// <summary>

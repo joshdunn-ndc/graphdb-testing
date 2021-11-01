@@ -26,7 +26,7 @@ namespace GraphDB_Testing.Gremlin
                 throw new ArgumentException("Key cannot be null or empty.", nameof(key));
 			}
 
-			if (Value == null)
+			if (value == null)
 			{
 				throw new ArgumentException("Value cannot be null.", nameof(value));
 			}
