@@ -6,6 +6,8 @@ namespace GraphDB_Testing.Power.BulkDataManager
 {
     public interface IBulkDataManager
     {
+        Task<BulkOperationResponse<object>> ImportDataModelAsync();
+
         /// <summary>
         /// Imports the given spreadsheet data to the graph database.
         /// </summary>

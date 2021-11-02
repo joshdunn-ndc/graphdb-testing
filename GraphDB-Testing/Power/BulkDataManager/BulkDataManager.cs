@@ -1,4 +1,6 @@
 ﻿using GraphDB_Testing.Gremlin;
+using GraphDB_Testing.Model.Edges;
+using GraphDB_Testing.Model.Vertices;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Options;
 using System;
@@ -14,7 +16,6 @@ namespace GraphDB_Testing.Power.BulkDataManager
     public class BulkDataManager : IBulkDataManager
     {
         
-        private readonly PowerOptions _options;
         private readonly string _endpoint;
         private readonly string _authKey;
         private readonly string _databaseName;
@@ -26,11 +27,71 @@ namespace GraphDB_Testing.Power.BulkDataManager
         /// <param name="options">The options to use.</param>
         public BulkDataManager(IOptions<PowerOptions> options)
         {
-            _options = options.Value;
-            _endpoint = _options.Endpoint;
-            _authKey = _options.AuthKey;
-            _databaseName = _options.DatabaseName;
-            _containerName = _options.ContainerName;
+            _endpoint = options.Value.Endpoint;
+            _authKey = options.Value.AuthKey;
+            _databaseName = options.Value.DatabaseName;
+            _containerName = options.Value.ContainerName;
+        }
+
+        public async Task<BulkOperationResponse<object>> ImportDataModelAsync()
+        {
+            CosmosClient client;
+            Database database;
+            Container container;
+            BulkOperations<object> bulkOperations;
+            BulkOperationResponse<object> response;
+            List<IVertex> vertices;
+            List<Edge> edges;
+
+
+            client = new CosmosClient(_endpoint, _authKey, new CosmosClientOptions() { AllowBulkExecution = true });
+            database = await client.CreateDatabaseIfNotExistsAsync(_databaseName);
+            container = await database.CreateContainerIfNotExistsAsync(_containerName, "/pk");
+
+            vertices = new List<IVertex>
+            {
+                new FloorVertex("First", "First Vertex", "Description goes here I guess"),
+                new FloorVertex("Second", "Second Vertex", "Another description."),
+                new FacilityVertex("B1", "Brisbane 1", "Brisbane Generation 1")
+            };
+
+            edges = new List<Edge>
+            {
+                new Edge("FirstEdge", "Edge Label", "Second", "First", "Out Label", "In Label"),
+                new Edge("Facility Edge", "Facility To Second", "B1", "Second", "Out Label", "In Label")
+            };
+
+            bulkOperations = new BulkOperations<object>(vertices.Count + edges.Count);
+
+            foreach (IVertex data in vertices)
+            {
+                RecordCreateItemAction(
+                    data,
+                    container,
+                    bulkOperations
+                );
+            }
+
+            foreach (Edge data in edges)
+            {
+                RecordCreateItemAction(
+                    data,
+                    container,
+                    bulkOperations
+                );
+            }
+
+            response = await bulkOperations.ExecuteAsync();
+
+            if (response.Failures.Count > 0)
+            {
+                // TODO: Remove this block and just return the above method.
+                // The response can have both failures and successful documents so
+                // we just need to return that instead of throwing an exception.
+                throw new ApplicationException();
+            }
+
+            return response;
         }
 
 
@@ -55,7 +116,7 @@ namespace GraphDB_Testing.Power.BulkDataManager
 
             foreach (GremlinVertex data in vertices)
             {
-                RecordCreateAction(
+                RecordCreateItemStreamAction(
                     Helpers.GetVertexDocumentString(
                         data,
                         "pk",
@@ -69,7 +130,7 @@ namespace GraphDB_Testing.Power.BulkDataManager
 
             foreach (GremlinEdge data in edges)
             {
-                RecordCreateAction(
+                RecordCreateItemStreamAction(
                     Helpers.GetEdgeDocumentString(
                         data,
                         true,
@@ -100,7 +161,7 @@ namespace GraphDB_Testing.Power.BulkDataManager
         /// <param name="jsonData">The JSON data to add.</param>
         /// <param name="container">The container to add it to.</param>
         /// <param name="operations">The bulk operations collection to add the action to.</param>
-        private void RecordCreateAction(
+        private void RecordCreateItemStreamAction(
             string jsonData,
             Container container,
             BulkOperations<ResponseMessage> operations
@@ -116,7 +177,7 @@ namespace GraphDB_Testing.Power.BulkDataManager
                     stream.Position = 0;
 
                     operations.Tasks.Add(
-                        CaptureOperationResponse(
+                        CaptureStreamOperationResponse(
                             container.CreateItemStreamAsync(stream, new PartitionKey("/pk")),
                             new ResponseMessage()
                         )
@@ -127,6 +188,62 @@ namespace GraphDB_Testing.Power.BulkDataManager
         }
 
 
+        private void RecordCreateItemAction(
+            object data,
+            Container container,
+            BulkOperations<object> operations
+        )
+        {
+
+            // TODO: Change the PK creation to actually use the 'pk' property off the object.
+            operations.Tasks.Add(
+                CaptureOperationResponse(
+                    container.CreateItemAsync(
+                        data, 
+                        new PartitionKey("/pk")
+                    ),
+                    data
+                )
+            );
+        }
+
+
+        private static async Task<OperationResponse<T>> CaptureOperationResponse<T>(Task<ItemResponse<T>> task, T item)
+        {
+            try
+            {
+                ItemResponse<T> response = await task;
+                return new OperationResponse<T>()
+                {
+                    Item = item,
+                    IsSuccessful = true,
+                    RequestUnitsConsumed = task.Result.RequestCharge
+                };
+            }
+            catch (Exception ex)
+            {
+                if (ex is CosmosException cosmosException)
+                {
+                    return new OperationResponse<T>()
+                    {
+                        Item = item,
+                        RequestUnitsConsumed = cosmosException.RequestCharge,
+                        IsSuccessful = false,
+                        CosmosException = cosmosException
+                    };
+                }
+
+                return new OperationResponse<T>()
+                {
+                    Item = item,
+                    IsSuccessful = false,
+                    CosmosException = ex
+                };
+            }
+        }
+
+
+
         /// <summary>
         /// Adapted from: https://docs.microsoft.com/en-us/azure/cosmos-db/sql/how-to-migrate-from-bulk-executor-library#capture-task-result-state
         /// </summary>
@@ -134,7 +251,7 @@ namespace GraphDB_Testing.Power.BulkDataManager
         /// <param name="task">The task to execute.</param>
         /// <param name="item">The item to record.</param>
         /// <returns>The response data.</returns>
-        private async Task<OperationResponse<T>> CaptureOperationResponse<T>(
+        private async Task<OperationResponse<T>> CaptureStreamOperationResponse<T>(
             Task<ResponseMessage> task, 
             T item
         )

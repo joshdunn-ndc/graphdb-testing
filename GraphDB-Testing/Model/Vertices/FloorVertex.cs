@@ -1,57 +1,53 @@
 ﻿using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
 
 namespace GraphDB_Testing.Model.Vertices
 {
-    class FloorVertex
+    public class FloorVertex : IVertex
     {
 
         public FloorVertex(string id, string name, string description)
         {
-            this.id = id;
-            label = "FLOOR";
-            pk = "/pk";
-            type = "vertex";
+            this.Id = id;
+            Label = "FLOOR";
+            PartitionKey = "/pk";
             this.name = name;
-            this.description = new List<Description>
+            this.description = new List<CosmosDescriptor>
             {
-                new Description { value = description, id = Guid.NewGuid().ToString() }
+                new CosmosDescriptor(description)
             };
+
+            this.location = new List<CosmosDescriptor>
+            {
+                new CosmosDescriptor("Location place")
+            };
+
+            this.facility = new CosmosDescriptor("B1");
+
+            this.properties = new Dictionary<string, List<CosmosDescriptor>>
+            {
+                {"Test", new List<CosmosDescriptor>{new CosmosDescriptor("thing here")} }
+            };
+
         }
 
-        public Properties properties { get; }
+        public string Id { get; }
 
-        [JsonProperty("_type")]
-        public string type { get; }
+        public string Label { get; }
 
-        public string id { get; }
-
-        public string label { get; }
-
-        public string pk { get; }
+        public string PartitionKey { get; }
 
         public string name { get; }
 
-        public List<Description> description { get; }
+        [JsonProperty("_properties")]
+        public Dictionary<string, List<CosmosDescriptor>> properties;
+
+        public CosmosDescriptor facility { get; }
+
+        public List<CosmosDescriptor> location { get; }
+
+        public List<CosmosDescriptor> description { get; }
 
         public int operationCounter { get; set; } = 0;
-
-
     }
-
-    class Properties
-    {
-        public List<Description> description { get; set; }
-    }
-
-    class Description
-    {
-        public string id { get; set; }
-
-        [JsonProperty("_value")]
-        public string value { get; set; }
-    }
-
-
 }

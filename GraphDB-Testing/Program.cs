@@ -30,7 +30,8 @@ namespace GraphDB_Testing
 
             gremlinData = SetupGremlinData();
 
-            manager.ImportSpreadsheetData(gremlinData.edges, gremlinData.vertices).Wait();
+            manager.ImportDataModelAsync().Wait();
+            //manager.ImportSpreadsheetData(gremlinData.edges, gremlinData.vertices).Wait();
         }
 
         private static (List<GremlinEdge> edges, List<GremlinVertex> vertices) SetupGremlinData()
